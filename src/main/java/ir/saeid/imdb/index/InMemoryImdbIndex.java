@@ -6,33 +6,33 @@ import ir.saeid.imdb.model.Person;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class InMemoryImdbIndex implements ImdbIndex{
     Long linesProcessed=0L;
-    ConcurrentHashMap<String, Movie> movieIndex = new ConcurrentHashMap<>();
-    ConcurrentHashMap<String, Person> peopleIndex = new ConcurrentHashMap<>();
+    Map<String, Movie> movieIndex = new HashMap<>();
+    Map<String, Person> peopleIndex = new HashMap<>();
     List<Movie> sameDirectorAndWriter = new ArrayList<>();
-    ConcurrentHashMap<String, Set<String>> actorMovies = new ConcurrentHashMap<>();
+    Map<String, List<String>> actorMovies = new HashMap<>();
     // we save best Movie of each genre of each year
-    ConcurrentHashMap<String, Map<Integer, Movie>> bestOfGenresOfYear = new ConcurrentHashMap<>();
+    HashMap<String, Map<Integer, Movie>> bestOfGenresOfYear = new HashMap<>();
 
     @Override
     public void reset() {
         linesProcessed=0L;
-        movieIndex = new ConcurrentHashMap<>();
-        peopleIndex = new ConcurrentHashMap<>();
+        movieIndex = new HashMap<>();
+        peopleIndex = new HashMap<>();
         sameDirectorAndWriter = new ArrayList<>();
-        actorMovies = new ConcurrentHashMap<>();
-        bestOfGenresOfYear = new ConcurrentHashMap<>();
+        actorMovies = new HashMap<>();
+        bestOfGenresOfYear = new HashMap<>();
     }
 
     @Override
     public void addPerson(Person person) {
         incrementAndLog("person");
 //        System.out.println("importing: " + person);
-        peopleIndex.put(person.getId(), person);
+        if(person.getDeathYear() >0)
+            peopleIndex.put(person.getId(), person);
     }
 
     @Override
@@ -76,9 +76,9 @@ public class InMemoryImdbIndex implements ImdbIndex{
         incrementAndLog("personmovie");
         if(category !=null){
             if(category.equals("actor") || category.equals("actress")){
-                Set<String> movies = actorMovies.get(personId);
+                List<String> movies = actorMovies.get(personId);
                 if(movies == null) {
-                    movies = new HashSet<>();
+                    movies = new ArrayList<>();
                     actorMovies.put(personId, movies);
                 }
 //                System.out.println("add movie:" + movieId + " to person: " + personId);
@@ -91,7 +91,7 @@ public class InMemoryImdbIndex implements ImdbIndex{
         Runtime runtime = Runtime.getRuntime();
         linesProcessed ++;
         if(linesProcessed %1_000_000 == 0) {
-            System.out.println(entity + ": " + linesProcessed + ", memory used: " + runtime.getRuntime().totalMemory()/ 1024/1024 + "MB");
+            System.out.println(entity + ": " + linesProcessed + ", memory used: " + (runtime.totalMemory() - runtime.freeMemory())/ 1024/1024 + "MB");
         }
     }
 
@@ -106,11 +106,11 @@ public class InMemoryImdbIndex implements ImdbIndex{
 
     @Override
     public List<Movie> getSharedActorMovies(String actor1, String actor2) {
-        Set<String> actor1Movies = actorMovies.get(actor1);
-        Set<String> actor2Movies = actorMovies.get(actor2);
+        List<String> actor1Movies = actorMovies.get(actor1);
+        List<String> actor2Movies = actorMovies.get(actor2);
         if(actor1Movies == null || actor2Movies == null)
             return List.of();
-        Set<String> sharedMovies = new HashSet<>(actor1Movies);
+        List<String> sharedMovies = new ArrayList<>(actor1Movies);
         sharedMovies.retainAll(actor2Movies);
         List<Movie> sharedMovies2 = new ArrayList<>();
         for (String sharedMovie : sharedMovies) {
@@ -134,7 +134,7 @@ public class InMemoryImdbIndex implements ImdbIndex{
         for (String genre : movie.getGenres()) {
             Map<Integer, Movie> yearsBestMovies = bestOfGenresOfYear.get(genre);
             if(yearsBestMovies == null){
-                yearsBestMovies = new ConcurrentHashMap<>();
+                yearsBestMovies = new HashMap<>();
                 bestOfGenresOfYear.put(genre, yearsBestMovies);
             }
             Movie existingBestOfYearMovie = yearsBestMovies.get(movie.getYear());
